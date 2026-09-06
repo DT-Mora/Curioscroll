@@ -66,7 +66,8 @@ button,a{font:inherit}
   position:absolute;
   inset:0;
   overflow:hidden;
-  display:block;
+  display:grid;
+  place-items:center;
   touch-action:none;
   user-select:none;
   -webkit-user-select:none;
@@ -75,14 +76,14 @@ button,a{font:inherit}
 }
 
 .curiosity{
-  position:absolute;
-  inset:0;
-  width:min(900px,calc(100% - 48px));
-  height:max-content;
-  margin:auto;
-  top:50%;
-  left:50%;
-  transform:translate3d(-50%,-50%,0);
+  grid-area:1 / 1;
+  position:relative;
+  inset:auto;
+  width:min(900px,calc(100% - 44px));
+  height:100%;
+  min-height:0;
+  margin:0;
+  padding:clamp(110px,16vh,170px) 0 clamp(130px,18vh,190px);
   text-align:center;
   will-change:transform,opacity;
   pointer-events:none;
@@ -91,17 +92,20 @@ button,a{font:inherit}
   align-items:center;
   justify-content:center;
 }
+
 .curiosity.incoming{
   opacity:0;
 }
+
 .stage.is-dragging .curiosity{
   transition:none!important;
 }
 
-/* Position and motion are driven by app.js. CSS only provides presentation. */
+/* JavaScript controla exclusivamente translateY/scale/opacity. */
 .curiosity{
   transition:none;
 }
+
 
 .fact{
   margin:0 auto;

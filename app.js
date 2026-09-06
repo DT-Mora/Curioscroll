@@ -254,6 +254,7 @@ let startY = 0;
 let lastY = 0;
 let dragDirection = 0;
 let lastInteraction = 0;
+let startTime = 0;
 
 function shuffle(list) {
   const a = [...list];
@@ -285,7 +286,7 @@ function setCard(card, fact) {
 }
 
 function cardTransform(y, scale = 1) {
-  return `translate3d(-50%, calc(-50% + ${y}px), 0) scale(${scale})`;
+  return `translate3d(0, ${y}px, 0) scale(${scale})`;
 }
 
 function setCardPosition(card, y, scale = 1, opacity = 1) {
@@ -399,6 +400,7 @@ function beginDrag(y, id = null) {
   startY = y;
   lastY = y;
   dragDirection = 0;
+  startTime = performance.now();
   target = null;
   stage.classList.add('is-dragging');
 }
@@ -434,7 +436,7 @@ function endDrag(y) {
   stage.classList.remove('is-dragging');
 
   const dy = y - startY;
-  const velocity = Math.abs(dy) / Math.max(1, performance.now() - lastInteraction);
+  const velocity = Math.abs(dy) / Math.max(1, performance.now() - startTime);
   const threshold = Math.min(120, window.innerHeight * .16);
   const shouldCommit = target && (Math.abs(dy) >= threshold || velocity > .65);
 
@@ -444,13 +446,14 @@ function endDrag(y) {
 
 stage.addEventListener('pointerdown', e => {
   if (e.target.closest('button,a')) return;
+  if (animating || drag) return;
   lastInteraction = performance.now();
   beginDrag(e.clientY, e.pointerId);
   stage.setPointerCapture?.(e.pointerId);
 });
 
 stage.addEventListener('pointermove', e => {
-  if (pointerId === e.pointerId) updateDrag(e.clientY);
+  if (drag && pointerId === e.pointerId) updateDrag(e.clientY);
 });
 
 stage.addEventListener('pointerup', e => {
@@ -466,21 +469,6 @@ stage.addEventListener('pointercancel', e => {
   }
   pointerId = null;
 });
-
-// Touch fallback for older Android WebViews.
-stage.addEventListener('touchstart', e => {
-  if (e.target.closest('button,a')) return;
-  lastInteraction = performance.now();
-  beginDrag(e.changedTouches[0].clientY);
-}, {passive: true});
-
-stage.addEventListener('touchmove', e => {
-  if (drag) updateDrag(e.changedTouches[0].clientY);
-}, {passive: true});
-
-stage.addEventListener('touchend', e => {
-  if (drag) endDrag(e.changedTouches[0].clientY);
-}, {passive: true});
 
 let wheelLock = false;
 window.addEventListener('wheel', e => {
