@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#08090b">
+  <meta name="description" content="CurioScroll: una curiosidad real a la vez.">
+  <title>CurioScroll</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app" id="app">
+    <header class="brand" aria-label="CurioScroll">CurioScroll</header>
+
+    <section class="stage" aria-live="polite">
+      <div class="curiosity" id="curiosity">
+        <p class="fact" id="fact">Cargando una curiosidad…</p>
+        <p class="detail" id="detail"></p>
+        <a class="source" id="source" target="_blank" rel="noopener noreferrer"></a>
+      </div>
+
+      <button class="like" id="like" type="button" aria-label="Me gusta" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20.84 8.61c0 5.2-8.84 10.18-8.84 10.18S3.16 13.81 3.16 8.61A4.64 4.64 0 0 1 12 6.06a4.64 4.64 0 0 1 8.84 2.55Z"/>
+        </svg>
+        <span id="likes">0</span>
+      </button>
+    </section>
+
+    <div class="gesture" aria-hidden="true">
+      <span></span>
+      <small>desliza</small>
+    </div>
+
+    <div class="edge" id="edge"></div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
