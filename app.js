@@ -298,6 +298,16 @@ function syncLike() {
   likesEl.textContent = on ? '1' : '0';
 }
 
+function setLikeMotion(y, opacity = 1, scale = 1) {
+  likeBtn.style.transform = `translate3d(0, ${y}px, 0) scale(${scale})`;
+  likeBtn.style.opacity = opacity;
+}
+
+function resetLikeMotion() {
+  likeBtn.style.transform = '';
+  likeBtn.style.opacity = '';
+}
+
 function prepareIncoming(dir) {
   if (dir > 0) {
     target = pickNext();
@@ -328,6 +338,7 @@ function swapCards(dir) {
   setCardPosition(currentCard, 0, 1, 1);
   setCardPosition(incomingCard, dir > 0 ? window.innerHeight : -window.innerHeight, .985, 0);
   syncLike();
+  resetLikeMotion();
   target = null;
 }
 
@@ -349,6 +360,21 @@ function animateTo(dir) {
 
     setCardPosition(currentCard, currentY, 1 - progress * .025, 1 - progress * .42);
     setCardPosition(incomingCard, incomingY, .985 + progress * .015, .45 + progress * .55);
+
+    // El like pertenece a la tarjeta visible. Durante el cambio sale con ella
+    // y entra con el estado de la nueva, sin esperar a que termine el swipe.
+    const likeOut = Math.min(1, progress / .5);
+    const likeIn = Math.max(0, (progress - .5) / .5);
+    if (target) {
+      if (progress < .5) {
+        setLikeMotion((dir > 0 ? -1 : 1) * h * likeOut, 1 - likeOut, 1 - likeOut * .08);
+      } else {
+        const targetLiked = !!liked[target.id];
+        likeBtn.setAttribute('aria-pressed', targetLiked ? 'true' : 'false');
+        likesEl.textContent = targetLiked ? '1' : '0';
+        setLikeMotion((dir > 0 ? 1 : -1) * h * (1 - likeIn), likeIn, .92 + likeIn * .08);
+      }
+    }
 
     if (t < 1) {
       requestAnimationFrame(frame);
@@ -379,6 +405,8 @@ function cancelDrag() {
     const incomingY = incomingStart + (0 - incomingStart) * eased;
     setCardPosition(currentCard, y, 1 - Math.abs(y / h) * .025, 1 - Math.abs(y / h) * .42);
     setCardPosition(incomingCard, incomingY, .985, .45 + Math.min(1, Math.abs(y / h)) * .55);
+    const p = Math.min(1, Math.abs(y / h));
+    setLikeMotion(y, 1 - p, 1 - p * .08);
     if (t < 1) requestAnimationFrame(frame);
     else {
       setCardPosition(currentCard, 0, 1, 1);
@@ -424,6 +452,7 @@ function updateDrag(y) {
   currentCard.dataset.y = String(offset);
   setCardPosition(currentCard, offset, 1 - progress * .025, currentOpacity);
   setCardPosition(incomingCard, incomingY, .985 + progress * .015, incomingOpacity);
+  setLikeMotion(offset, currentOpacity, 1 - progress * .08);
 }
 
 function endDrag(y) {
@@ -500,6 +529,7 @@ likeBtn.addEventListener('click', e => {
 window.addEventListener('resize', () => {
   if (!drag && !animating) {
     setCardPosition(currentCard, 0, 1, 1);
+    resetLikeMotion();
     if (target) setCardPosition(incomingCard, dragDirection > 0 ? window.innerHeight : -window.innerHeight, .985, .45);
   }
 });
@@ -511,6 +541,7 @@ function init() {
   setCardPosition(currentCard, 0, 1, 1);
   setCardPosition(incomingCard, window.innerHeight, .985, 0);
   syncLike();
+  resetLikeMotion();
   setTimeout(() => gesture?.classList.add('fade'), 3200);
 }
 
