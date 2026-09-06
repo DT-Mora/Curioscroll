@@ -76,12 +76,21 @@ button{border:0}
 .curiosity{
   width:min(900px,100%);
   text-align:center;
-  transform:translateY(0);
-  opacity:1;
-  transition:opacity .22s ease,transform .32s cubic-bezier(.22,.8,.25,1);
+  transform:translate3d(0,0,0) scale(1);
+  opacity:0;
+  will-change:transform,opacity;
 }
-.curiosity.leaving{opacity:0;transform:translateY(-18px)}
-.curiosity.entering{opacity:0;transform:translateY(18px)}
+.curiosity.is-ready{
+  opacity:1;
+  transform:translate3d(0,0,0) scale(1);
+}
+.curiosity.exit-up{opacity:0;transform:translate3d(0,-72vh,0) rotate(-2deg);transition:transform .24s cubic-bezier(.55,.05,.9,.35),opacity .2s ease}
+.curiosity.exit-down{opacity:0;transform:translate3d(0,72vh,0) rotate(2deg);transition:transform .24s cubic-bezier(.55,.05,.9,.35),opacity .2s ease}
+.curiosity.enter-up{opacity:0;transform:translate3d(0,72vh,0) scale(.97)}
+.curiosity.enter-down{opacity:0;transform:translate3d(0,-72vh,0) scale(.97)}
+.curiosity.enter-up.is-ready,.curiosity.enter-down.is-ready{opacity:1;transform:translate3d(0,0,0) scale(1);transition:transform .38s cubic-bezier(.18,.82,.24,1),opacity .3s ease}
+.stage.is-dragging .curiosity{transition:none}
+
 
 .fact{
   margin:0 auto;
@@ -149,6 +158,7 @@ button{border:0}
 }
 
 .gesture{
+  transition:opacity .5s ease, transform .5s ease;
   position:absolute;
   left:50%;
   bottom:calc(24px + env(safe-area-inset-bottom));
@@ -179,6 +189,7 @@ button{border:0}
   background:#aaaeb7;
   animation:scrollHint 1.8s ease-in-out infinite;
 }
+.gesture.fade{opacity:0}
 .gesture small{
   font-size:10px;
   letter-spacing:.08em;
@@ -209,10 +220,11 @@ button{border:0}
   .fact{font-size:clamp(38px,11.5vw,66px)}
   .detail{margin-top:22px;font-size:16px;line-height:1.48}
   .like{right:18px;bottom:calc(82px + env(safe-area-inset-bottom))}
-  .gesture{bottom:calc(22px + env(safe-area-inset-bottom))}
+  .gesture{
+  transition:opacity .5s ease, transform .5s ease;bottom:calc(22px + env(safe-area-inset-bottom))}
 }
 
 @media (prefers-reduced-motion:reduce){
-  .curiosity,.like,.edge{transition:none}
+  .curiosity,.like,.edge,.gesture{transition:none}
   .gesture span::after{animation:none}
 }
