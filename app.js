@@ -235,6 +235,7 @@ const facts = [
    The interaction is controlled by JavaScript. CSS is only responsible for layout/style.
 */
 const stage = document.getElementById('stage');
+const likeShell = document.getElementById('like-shell');
 const likeBtn = document.getElementById('like');
 const likesEl = document.getElementById('likes');
 const gesture = document.querySelector('.gesture');
@@ -292,22 +293,22 @@ function setCardPosition(card, y, scale = 1, opacity = 1) {
   card.style.opacity = opacity;
 }
 
-function syncLike() {
-  const on = !!liked[current?.id];
+function renderLikeFor(fact) {
+  const on = !!liked[fact?.id];
   likeBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
   likesEl.textContent = on ? '1' : '0';
 }
 
-function setLikeMotion(y, opacity = 1, scale = 1) {
-  likeBtn.style.setProperty('--like-y', `${y}px`);
-  likeBtn.style.setProperty('--like-scale', scale);
-  likeBtn.style.opacity = opacity;
+function setLikeMotion(y, opacity = 1) {
+  // Movement belongs to the shell and is written directly by JavaScript.
+  // The button itself remains free to animate its press state independently.
+  likeShell.style.transform = `translate3d(0, ${y}px, 0)`;
+  likeShell.style.opacity = opacity;
 }
 
 function resetLikeMotion() {
-  likeBtn.style.setProperty('--like-y', '0px');
-  likeBtn.style.setProperty('--like-scale', '1');
-  likeBtn.style.opacity = '';
+  likeShell.style.transform = 'translate3d(0, 0, 0)';
+  likeShell.style.opacity = '';
 }
 
 function prepareIncoming(dir) {
@@ -339,7 +340,7 @@ function swapCards(dir) {
   [currentCard, incomingCard] = [incomingCard, currentCard];
   setCardPosition(currentCard, 0, 1, 1);
   setCardPosition(incomingCard, dir > 0 ? window.innerHeight : -window.innerHeight, .985, 0);
-  syncLike();
+  renderLikeFor(current);
   resetLikeMotion();
   target = null;
 }
@@ -363,18 +364,16 @@ function animateTo(dir) {
     setCardPosition(currentCard, currentY, 1 - progress * .025, 1 - progress * .42);
     setCardPosition(incomingCard, incomingY, .985 + progress * .015, .45 + progress * .55);
 
-    // El like pertenece a la tarjeta visible. Durante el cambio sale con ella
-    // y entra con el estado de la nueva, sin esperar a que termine el swipe.
-    const likeOut = Math.min(1, progress / .5);
+    // El Like es una pieza de la misma transición que la curiosidad.
+    // JavaScript mueve el shell en el mismo requestAnimationFrame que las tarjetas.
+    const likeProgress = Math.min(1, progress / .5);
     const likeIn = Math.max(0, (progress - .5) / .5);
     if (target) {
       if (progress < .5) {
-        setLikeMotion((dir > 0 ? -1 : 1) * h * likeOut, 1 - likeOut, 1 - likeOut * .08);
+        setLikeMotion((dir > 0 ? -1 : 1) * h * likeProgress, 1 - likeProgress);
       } else {
-        const targetLiked = !!liked[target.id];
-        likeBtn.setAttribute('aria-pressed', targetLiked ? 'true' : 'false');
-        likesEl.textContent = targetLiked ? '1' : '0';
-        setLikeMotion((dir > 0 ? 1 : -1) * h * (1 - likeIn), likeIn, .92 + likeIn * .08);
+        renderLikeFor(target);
+        setLikeMotion((dir > 0 ? 1 : -1) * h * (1 - likeIn), likeIn);
       }
     }
 
@@ -408,7 +407,7 @@ function cancelDrag() {
     setCardPosition(currentCard, y, 1 - Math.abs(y / h) * .025, 1 - Math.abs(y / h) * .42);
     setCardPosition(incomingCard, incomingY, .985, .45 + Math.min(1, Math.abs(y / h)) * .55);
     const p = Math.min(1, Math.abs(y / h));
-    setLikeMotion(y, 1 - p, 1 - p * .08);
+    setLikeMotion(y, 1 - p);
     if (t < 1) requestAnimationFrame(frame);
     else {
       setCardPosition(currentCard, 0, 1, 1);
@@ -454,7 +453,7 @@ function updateDrag(y) {
   currentCard.dataset.y = String(offset);
   setCardPosition(currentCard, offset, 1 - progress * .025, currentOpacity);
   setCardPosition(incomingCard, incomingY, .985 + progress * .015, incomingOpacity);
-  setLikeMotion(offset, currentOpacity, 1 - progress * .08);
+  setLikeMotion(offset, currentOpacity);
 }
 
 function endDrag(y) {
@@ -520,7 +519,7 @@ likeBtn.addEventListener('click', e => {
   if (!current) return;
   liked[current.id] = liked[current.id] ? 0 : 1;
   localStorage.setItem('curioscroll-liked', JSON.stringify(liked));
-  syncLike();
+  renderLikeFor(current);
   likeBtn.animate([
     {transform:'scale(.88)'},
     {transform:'scale(1.08)'},
@@ -542,7 +541,7 @@ function init() {
   setCard(currentCard, current);
   setCardPosition(currentCard, 0, 1, 1);
   setCardPosition(incomingCard, window.innerHeight, .985, 0);
-  syncLike();
+  renderLikeFor(current);
   resetLikeMotion();
   setTimeout(() => gesture?.classList.add('fade'), 3200);
 }
