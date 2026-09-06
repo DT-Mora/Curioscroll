@@ -514,16 +514,11 @@ window.addEventListener('keydown', e => {
   if (prepareIncoming(dir)) animateTo(dir);
 });
 
-likeBtn.addEventListener('pointerdown', e => e.stopPropagation());
-likeBtn.addEventListener('pointerup', e => e.stopPropagation());
-likeBtn.addEventListener('click', e => {
-  e.preventDefault();
-  e.stopPropagation();
-  if (!current) return;
+function toggleLike() {
+  if (!current || animating) return;
 
-  // El estado se guarda por ID de curiosidad. Si ya estaba con like,
-  // se elimina por completo para que pueda volver a marcarse/desmarcarse
-  // correctamente incluso después de recargar la página.
+  // El estado se guarda por ID de curiosidad, así que sobrevive a recargas.
+  // Si ya tenía like, se elimina. Si no tenía, se añade.
   const factId = current.id;
   if (liked[factId]) {
     delete liked[factId];
@@ -538,6 +533,23 @@ likeBtn.addEventListener('click', e => {
     {transform:'scale(1.08)'},
     {transform:'scale(1)'}
   ], {duration:280, easing:'cubic-bezier(.2,.8,.2,1)'});
+}
+
+// El Like tiene prioridad sobre el gesto del escenario. Usamos pointerup
+// directamente para que funcione de forma fiable tanto con mouse como con touch.
+likeBtn.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  e.stopPropagation();
+});
+likeBtn.addEventListener('pointerup', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  toggleLike();
+});
+likeBtn.addEventListener('click', e => {
+  // El click posterior a pointerup no debe volver a alternar el estado.
+  e.preventDefault();
+  e.stopPropagation();
 });
 
 window.addEventListener('resize', () => {
