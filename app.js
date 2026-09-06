@@ -251,9 +251,7 @@ let drag = false;
 let animating = false;
 let pointerId = null;
 let startY = 0;
-let lastY = 0;
 let dragDirection = 0;
-let lastInteraction = 0;
 let startTime = 0;
 
 function shuffle(list) {
@@ -286,7 +284,7 @@ function setCard(card, fact) {
 }
 
 function cardTransform(y, scale = 1) {
-  return `translate3d(0, ${y}px, 0) scale(${scale})`;
+  return `translate3d(-50%, calc(-50% + ${y}px), 0) scale(${scale})`;
 }
 
 function setCardPosition(card, y, scale = 1, opacity = 1) {
@@ -398,7 +396,6 @@ function beginDrag(y, id = null) {
   drag = true;
   pointerId = id;
   startY = y;
-  lastY = y;
   dragDirection = 0;
   startTime = performance.now();
   target = null;
@@ -408,7 +405,6 @@ function beginDrag(y, id = null) {
 function updateDrag(y) {
   if (!drag || animating) return;
   const dy = y - startY;
-  lastY = y;
   if (Math.abs(dy) < 3) return;
 
   const dir = dy < 0 ? 1 : -1;
@@ -447,9 +443,8 @@ function endDrag(y) {
 stage.addEventListener('pointerdown', e => {
   if (e.target.closest('button,a')) return;
   if (animating || drag) return;
-  lastInteraction = performance.now();
   beginDrag(e.clientY, e.pointerId);
-  stage.setPointerCapture?.(e.pointerId);
+  try { stage.setPointerCapture(e.pointerId); } catch (_) {}
 });
 
 stage.addEventListener('pointermove', e => {
