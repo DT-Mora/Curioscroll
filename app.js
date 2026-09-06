@@ -514,10 +514,23 @@ window.addEventListener('keydown', e => {
   if (prepareIncoming(dir)) animateTo(dir);
 });
 
+likeBtn.addEventListener('pointerdown', e => e.stopPropagation());
+likeBtn.addEventListener('pointerup', e => e.stopPropagation());
 likeBtn.addEventListener('click', e => {
+  e.preventDefault();
   e.stopPropagation();
   if (!current) return;
-  liked[current.id] = liked[current.id] ? 0 : 1;
+
+  // El estado se guarda por ID de curiosidad. Si ya estaba con like,
+  // se elimina por completo para que pueda volver a marcarse/desmarcarse
+  // correctamente incluso después de recargar la página.
+  const factId = current.id;
+  if (liked[factId]) {
+    delete liked[factId];
+  } else {
+    liked[factId] = 1;
+  }
+
   localStorage.setItem('curioscroll-liked', JSON.stringify(liked));
   renderLikeFor(current);
   likeBtn.animate([
