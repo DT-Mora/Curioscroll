@@ -299,12 +299,14 @@ function syncLike() {
 }
 
 function setLikeMotion(y, opacity = 1, scale = 1) {
-  likeBtn.style.transform = `translate3d(0, ${y}px, 0) scale(${scale})`;
+  likeBtn.style.setProperty('--like-y', `${y}px`);
+  likeBtn.style.setProperty('--like-scale', scale);
   likeBtn.style.opacity = opacity;
 }
 
 function resetLikeMotion() {
-  likeBtn.style.transform = '';
+  likeBtn.style.setProperty('--like-y', '0px');
+  likeBtn.style.setProperty('--like-scale', '1');
   likeBtn.style.opacity = '';
 }
 

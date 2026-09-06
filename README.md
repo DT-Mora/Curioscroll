@@ -1,20 +1,9 @@
-# CurioScroll V2
+# CurioScroll
 
-Versión rediseñada para una experiencia de descubrimiento simple:
+Versión corregida del sistema de navegación y sincronización visual del botón Like.
 
-- Una sola curiosidad visible.
-- Selección aleatoria por sesión.
-- Sin categorías, guardados, compartir ni contador.
-- Único control social visible: Like.
-- Likes persistidos en `localStorage`.
-- Fuente verificable en cada dato.
-- Transiciones cortas y sobrias.
-- Touch, rueda y teclado.
-- Sin dependencias JavaScript externas.
-
-Archivos:
-- `index.html`
-- `styles.css`
-- `app.js`
-
-Para publicar en GitHub Pages, sube los tres archivos conservando la misma estructura.
+- Swipe vertical controlado por JavaScript.
+- Tarjeta y Like se mueven con la misma animación.
+- El estado del Like de la nueva curiosidad se cambia cuando el botón está fuera de vista.
+- Sin transición CSS en `transform` del Like, evitando retraso visual.
+- Cache busting v7.
