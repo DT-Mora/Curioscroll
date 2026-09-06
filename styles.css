@@ -98,6 +98,11 @@ button,a{font:inherit}
   transition:none!important;
 }
 
+/* Position and motion are driven by app.js. CSS only provides presentation. */
+.curiosity{
+  transition:none;
+}
+
 .fact{
   margin:0 auto;
   max-width:900px;

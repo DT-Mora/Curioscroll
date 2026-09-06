@@ -231,27 +231,29 @@ const facts = [
 {id:'blood-vessels',fact:'Los vasos sanguíneos forman una red extensa por todo el cuerpo.',detail:'Arterias, venas y capilares permiten transportar sangre entre el corazón y los tejidos.',source:'NIH',url:'https://www.nhlbi.nih.gov/health/blood-vessels'}
 ];
 
-let queue = [];
-let history = [];
-let current = null;
-let target = null;
-let drag = false;
-let dragPointerId = null;
-let startX = 0;
-let startY = 0;
-let lastY = 0;
-let lastTime = 0;
-let direction = 0;
-let animating = false;
-
-const liked = JSON.parse(localStorage.getItem('curioscroll-liked') || '{}');
-
-const stage = document.querySelector('.stage');
-let currentCard = document.getElementById('curiosity-current');
-let incomingCard = document.getElementById('curiosity-incoming');
+/* CurioScroll navigation engine
+   The interaction is controlled by JavaScript. CSS is only responsible for layout/style.
+*/
+const stage = document.getElementById('stage');
 const likeBtn = document.getElementById('like');
 const likesEl = document.getElementById('likes');
 const gesture = document.querySelector('.gesture');
+
+let currentCard = document.getElementById('curiosity-current');
+let incomingCard = document.getElementById('curiosity-incoming');
+
+const liked = JSON.parse(localStorage.getItem('curioscroll-liked') || '{}');
+const recentIds = [];
+const history = [];
+let current = null;
+let target = null;
+let drag = false;
+let animating = false;
+let pointerId = null;
+let startY = 0;
+let lastY = 0;
+let dragDirection = 0;
+let lastInteraction = 0;
 
 function shuffle(list) {
   const a = [...list];
@@ -262,27 +264,19 @@ function shuffle(list) {
   return a;
 }
 
-function refillQueue() {
-  const pool = facts.filter(f => f.id !== current?.id);
-  queue = shuffle(pool);
+function remember(id) {
+  recentIds.push(id);
+  if (recentIds.length > 12) recentIds.shift();
 }
 
-function nextFact() {
-  if (!queue.length) refillQueue();
-  let f = queue.pop();
-  if (!f || f.id === current?.id) {
-    refillQueue();
-    f = queue.pop();
-  }
-  return f;
-}
-
-function previousFact() {
-  return history.length ? history[history.length - 1] : null;
+function pickNext() {
+  const pool = facts.filter(f => f.id !== current?.id && !recentIds.includes(f.id));
+  const fallback = facts.filter(f => f.id !== current?.id);
+  const source = pool.length ? pool : fallback;
+  return source[Math.floor(Math.random() * source.length)];
 }
 
 function setCard(card, fact) {
-  if (!fact) return;
   card.querySelector('.fact').textContent = fact.fact;
   card.querySelector('.detail').textContent = fact.detail;
   const source = card.querySelector('.source');
@@ -290,236 +284,221 @@ function setCard(card, fact) {
   source.href = fact.url;
 }
 
-function setLike() {
-  const value = liked[current?.id] ? 1 : 0;
-  likesEl.textContent = value ? '1' : '0';
-  likeBtn.setAttribute('aria-pressed', value ? 'true' : 'false');
+function cardTransform(y, scale = 1) {
+  return `translate3d(-50%, calc(-50% + ${y}px), 0) scale(${scale})`;
 }
 
-function setTransforms(currentY, incomingY, opacity = 1) {
-  currentCard.style.transform = `translate3d(0, ${currentY}px, 0)`;
-  currentCard.style.opacity = opacity;
-  incomingCard.style.transform = `translate3d(0, ${incomingY}px, 0)`;
-  incomingCard.style.opacity = Math.max(.55, Math.min(1, 1 - Math.abs(incomingY) / window.innerHeight * .35));
+function setCardPosition(card, y, scale = 1, opacity = 1) {
+  card.style.transform = cardTransform(y, scale);
+  card.style.opacity = opacity;
 }
 
-function resetCards() {
-  currentCard.style.transition = 'none';
-  incomingCard.style.transition = 'none';
-  currentCard.style.transform = 'translate3d(0,0,0)';
-  currentCard.style.opacity = '1';
-  incomingCard.style.opacity = '0';
-  incomingCard.style.transform = 'translate3d(0,100vh,0)';
-  requestAnimationFrame(() => {
-    currentCard.style.transition = '';
-    incomingCard.style.transition = '';
-  });
+function syncLike() {
+  const on = !!liked[current?.id];
+  likeBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  likesEl.textContent = on ? '1' : '0';
 }
 
-function prepareTarget(dir) {
-  direction = dir;
-  target = dir > 0 ? nextFact() : previousFact();
+function prepareIncoming(dir) {
+  if (dir > 0) {
+    target = pickNext();
+  } else {
+    target = history.length ? history[history.length - 1] : null;
+  }
   if (!target) return false;
 
   setCard(incomingCard, target);
+  const h = window.innerHeight;
   incomingCard.style.transition = 'none';
-  incomingCard.style.opacity = '1';
-  incomingCard.style.transform =
-    `translate3d(0, ${dir > 0 ? window.innerHeight : -window.innerHeight}px, 0)`;
+  setCardPosition(incomingCard, dir > 0 ? h : -h, 0.985, 0.45);
   return true;
 }
 
-function commit(dir) {
-  if (!target || animating) return;
+function swapCards(dir) {
+  const oldCurrent = current;
+  current = target;
 
+  if (dir > 0) {
+    history.push(oldCurrent);
+    remember(current.id);
+  } else if (history.length) {
+    history.pop();
+  }
+
+  [currentCard, incomingCard] = [incomingCard, currentCard];
+  setCardPosition(currentCard, 0, 1, 1);
+  setCardPosition(incomingCard, dir > 0 ? window.innerHeight : -window.innerHeight, .985, 0);
+  syncLike();
+  target = null;
+}
+
+function animateTo(dir) {
+  if (!target || animating) return;
   animating = true;
   const h = window.innerHeight;
-  const outY = dir > 0 ? -h : h;
+  const start = performance.now();
+  const duration = 430;
+  const fromCurrent = parseFloat(currentCard.dataset.y || '0');
 
-  currentCard.style.transition =
-    'transform .42s cubic-bezier(.2,.8,.2,1), opacity .32s ease';
-  incomingCard.style.transition =
-    'transform .42s cubic-bezier(.2,.8,.2,1), opacity .32s ease';
+  function frame(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 4);
+    const currentY = fromCurrent + ((dir > 0 ? -h : h) - fromCurrent) * eased;
+    const incomingStart = dir > 0 ? h : -h;
+    const incomingY = incomingStart * (1 - eased);
+    const progress = Math.min(1, Math.abs(currentY) / h);
 
-  currentCard.style.transform = `translate3d(0, ${outY}px, 0)`;
-  currentCard.style.opacity = '0';
-  incomingCard.style.transform = 'translate3d(0,0,0)';
-  incomingCard.style.opacity = '1';
+    setCardPosition(currentCard, currentY, 1 - progress * .025, 1 - progress * .42);
+    setCardPosition(incomingCard, incomingY, .985 + progress * .015, .45 + progress * .55);
 
-  setTimeout(() => {
-    if (dir > 0) history.push(current);
-    else if (history.length) history.pop();
+    if (t < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      currentCard.dataset.y = '0';
+      incomingCard.dataset.y = '0';
+      swapCards(dir);
+      animating = false;
+    }
+  }
 
-    current = target;
-    if (queue.length && queue[queue.length - 1]?.id === current.id) queue.pop();
-
-    [currentCard, incomingCard] = [incomingCard, currentCard];
-
-    currentCard.style.transition = 'none';
-    currentCard.style.transform = 'translate3d(0,0,0)';
-    currentCard.style.opacity = '1';
-
-    incomingCard.style.transition = 'none';
-    incomingCard.style.transform =
-      `translate3d(0, ${dir > 0 ? window.innerHeight : -window.innerHeight}px, 0)`;
-    incomingCard.style.opacity = '0';
-
-    setLike();
-    target = null;
-    direction = 0;
-    animating = false;
-
-    requestAnimationFrame(() => {
-      currentCard.style.transition = '';
-      incomingCard.style.transition = '';
-    });
-  }, 430);
+  requestAnimationFrame(frame);
 }
 
 function cancelDrag() {
-  currentCard.style.transition =
-    'transform .25s cubic-bezier(.2,.8,.2,1), opacity .2s ease';
-  incomingCard.style.transition =
-    'transform .25s cubic-bezier(.2,.8,.2,1), opacity .2s ease';
+  if (!target) return;
+  const h = window.innerHeight;
+  const dir = dragDirection || 1;
+  const start = performance.now();
+  const duration = 220;
+  const currentY = parseFloat(currentCard.dataset.y || '0');
 
-  currentCard.style.transform = 'translate3d(0,0,0)';
-  currentCard.style.opacity = '1';
-
-  incomingCard.style.transform =
-    `translate3d(0, ${direction > 0 ? window.innerHeight : -window.innerHeight}px, 0)`;
-  incomingCard.style.opacity = '0';
-
-  setTimeout(() => {
-    currentCard.style.transition = '';
-    incomingCard.style.transition = '';
-    target = null;
-    direction = 0;
-  }, 260);
+  function frame(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const y = currentY * (1 - eased);
+    const incomingStart = dir > 0 ? h : -h;
+    const incomingY = incomingStart + (0 - incomingStart) * eased;
+    setCardPosition(currentCard, y, 1 - Math.abs(y / h) * .025, 1 - Math.abs(y / h) * .42);
+    setCardPosition(incomingCard, incomingY, .985, .45 + Math.min(1, Math.abs(y / h)) * .55);
+    if (t < 1) requestAnimationFrame(frame);
+    else {
+      setCardPosition(currentCard, 0, 1, 1);
+      setCardPosition(incomingCard, dir > 0 ? h : -h, .985, 0);
+      currentCard.dataset.y = '0';
+      target = null;
+      dragDirection = 0;
+    }
+  }
+  requestAnimationFrame(frame);
 }
 
-function move(y) {
-  if (!drag || animating) return;
+function beginDrag(y, id = null) {
+  if (animating) return;
+  drag = true;
+  pointerId = id;
+  startY = y;
+  lastY = y;
+  dragDirection = 0;
+  target = null;
+  stage.classList.add('is-dragging');
+}
 
+function updateDrag(y) {
+  if (!drag || animating) return;
   const dy = y - startY;
   lastY = y;
-  const now = performance.now();
-  const dt = Math.max(1, now - lastTime);
-  const velocity = (y - (window._previousY ?? y)) / dt;
-  window._previousY = y;
-  lastTime = now;
+  if (Math.abs(dy) < 3) return;
 
   const dir = dy < 0 ? 1 : -1;
-
-  if (Math.abs(dy) < 4) return;
-
-  if (dir !== direction || !target) {
-    if (!prepareTarget(dir)) return;
+  if (dir !== dragDirection || !target) {
+    dragDirection = dir;
+    if (!prepareIncoming(dir)) return;
   }
 
   const h = window.innerHeight;
-  const resistance = 0.88;
-  const offset = dy * resistance;
-  const incomingY = dir > 0 ? h + offset : -h + offset;
+  const offset = dy * .92;
   const progress = Math.min(1, Math.abs(offset) / h);
-  const scale = 1 - progress * .035;
-  const opacity = 1 - progress * .32;
+  const incomingStart = dir > 0 ? h : -h;
+  const incomingY = incomingStart + offset;
+  const currentOpacity = 1 - progress * .30;
+  const incomingOpacity = .42 + progress * .58;
 
-  currentCard.style.transform =
-    `translate3d(0, ${offset}px, 0) scale(${scale})`;
-  currentCard.style.opacity = opacity;
-  incomingCard.style.transform =
-    `translate3d(0, ${incomingY}px, 0) scale(${1 - (1-progress)*.02})`;
-  incomingCard.style.opacity = Math.min(1, .45 + progress * .7);
+  currentCard.dataset.y = String(offset);
+  setCardPosition(currentCard, offset, 1 - progress * .025, currentOpacity);
+  setCardPosition(incomingCard, incomingY, .985 + progress * .015, incomingOpacity);
 }
 
-function end(y) {
+function endDrag(y) {
   if (!drag) return;
   drag = false;
   stage.classList.remove('is-dragging');
 
   const dy = y - startY;
-  const elapsed = Math.max(1, performance.now() - lastTime);
-  const distanceEnough = Math.abs(dy) > Math.min(95, window.innerHeight * .14);
-  const fastEnough = Math.abs(dy) / elapsed > .65;
+  const velocity = Math.abs(dy) / Math.max(1, performance.now() - lastInteraction);
+  const threshold = Math.min(120, window.innerHeight * .16);
+  const shouldCommit = target && (Math.abs(dy) >= threshold || velocity > .65);
 
-  if (target && (distanceEnough || fastEnough)) {
-    commit(direction);
-  } else {
-    cancelDrag();
-  }
+  if (shouldCommit) animateTo(dragDirection);
+  else cancelDrag();
 }
 
-function start(e) {
-  if (animating || e.target.closest('button,a')) return;
-  drag = true;
-  dragPointerId = e.pointerId;
-  startX = e.clientX;
-  startY = e.clientY;
-  lastY = e.clientY;
-  window._previousY = e.clientY;
-  lastTime = performance.now();
-  direction = 0;
-  target = null;
-  stage.classList.add('is-dragging');
+stage.addEventListener('pointerdown', e => {
+  if (e.target.closest('button,a')) return;
+  lastInteraction = performance.now();
+  beginDrag(e.clientY, e.pointerId);
   stage.setPointerCapture?.(e.pointerId);
-}
+});
 
-stage.addEventListener('pointerdown', start);
 stage.addEventListener('pointermove', e => {
-  if (drag && e.pointerId === dragPointerId) move(e.clientY);
+  if (pointerId === e.pointerId) updateDrag(e.clientY);
 });
+
 stage.addEventListener('pointerup', e => {
-  if (drag && e.pointerId === dragPointerId) end(e.clientY);
+  if (pointerId === e.pointerId) endDrag(e.clientY);
+  pointerId = null;
 });
+
 stage.addEventListener('pointercancel', e => {
-  if (drag && e.pointerId === dragPointerId) {
+  if (pointerId === e.pointerId) {
     drag = false;
     stage.classList.remove('is-dragging');
     cancelDrag();
   }
+  pointerId = null;
 });
 
-// Touch fallback for mobile browsers where pointer events are inconsistent.
+// Touch fallback for older Android WebViews.
 stage.addEventListener('touchstart', e => {
-  if (animating || e.target.closest('button,a')) return;
-  const t = e.changedTouches[0];
-  startX = t.clientX;
-  startY = t.clientY;
-  lastY = t.clientY;
-  window._previousY = t.clientY;
-  lastTime = performance.now();
-  drag = true;
-  direction = 0;
-  target = null;
-  stage.classList.add('is-dragging');
-}, {passive:true});
+  if (e.target.closest('button,a')) return;
+  lastInteraction = performance.now();
+  beginDrag(e.changedTouches[0].clientY);
+}, {passive: true});
 
 stage.addEventListener('touchmove', e => {
-  if (!drag || animating) return;
-  const t = e.changedTouches[0];
-  move(t.clientY);
-}, {passive:true});
+  if (drag) updateDrag(e.changedTouches[0].clientY);
+}, {passive: true});
 
 stage.addEventListener('touchend', e => {
-  if (!drag) return;
-  const t = e.changedTouches[0];
-  end(t.clientY);
-}, {passive:true});
+  if (drag) endDrag(e.changedTouches[0].clientY);
+}, {passive: true});
 
 let wheelLock = false;
 window.addEventListener('wheel', e => {
-  if (wheelLock || Math.abs(e.deltaY) < 18 || animating) return;
-  wheelLock = true;
+  if (wheelLock || animating || Math.abs(e.deltaY) < 12) return;
   const dir = e.deltaY > 0 ? 1 : -1;
-  if (prepareTarget(dir)) commit(dir);
-  setTimeout(() => wheelLock = false, 520);
-}, {passive:true});
+  if (prepareIncoming(dir)) {
+    wheelLock = true;
+    animateTo(dir);
+    setTimeout(() => wheelLock = false, 470);
+  }
+}, {passive: true});
 
 window.addEventListener('keydown', e => {
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== ' ') return;
   e.preventDefault();
+  if (animating) return;
   const dir = e.key === 'ArrowUp' ? -1 : 1;
-  if (!animating && prepareTarget(dir)) commit(dir);
+  if (prepareIncoming(dir)) animateTo(dir);
 });
 
 likeBtn.addEventListener('click', e => {
@@ -527,25 +506,29 @@ likeBtn.addEventListener('click', e => {
   if (!current) return;
   liked[current.id] = liked[current.id] ? 0 : 1;
   localStorage.setItem('curioscroll-liked', JSON.stringify(liked));
-  setLike();
-  likeBtn.animate(
-    [{transform:'scale(.88)'},{transform:'scale(1.08)'},{transform:'scale(1)'}],
-    {duration:280,easing:'cubic-bezier(.2,.8,.2,1)'}
-  );
+  syncLike();
+  likeBtn.animate([
+    {transform:'scale(.88)'},
+    {transform:'scale(1.08)'},
+    {transform:'scale(1)'}
+  ], {duration:280, easing:'cubic-bezier(.2,.8,.2,1)'});
+});
+
+window.addEventListener('resize', () => {
+  if (!drag && !animating) {
+    setCardPosition(currentCard, 0, 1, 1);
+    if (target) setCardPosition(incomingCard, dragDirection > 0 ? window.innerHeight : -window.innerHeight, .985, .45);
+  }
 });
 
 function init() {
   current = shuffle(facts)[0];
-  queue = shuffle(facts.filter(f => f.id !== current.id));
+  remember(current.id);
   setCard(currentCard, current);
-  currentCard.style.opacity = '1';
-  currentCard.style.transform = 'translate3d(0,0,0)';
-  incomingCard.style.opacity = '0';
-  setLike();
+  setCardPosition(currentCard, 0, 1, 1);
+  setCardPosition(incomingCard, window.innerHeight, .985, 0);
+  syncLike();
+  setTimeout(() => gesture?.classList.add('fade'), 3200);
 }
-
-window.addEventListener('resize', () => {
-  if (!drag && !animating) resetCards();
-});
 
 init();
